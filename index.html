@@ -1,0 +1,1223 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rouledict5 — Motor de Análisis</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#0A0A1A;
+    --panel:#16213E;
+    --panel2:#111a30;
+    --verde:#00E676;
+    --rojo:#FF5252;
+    --amarillo:#FFB74D;
+    --azul:#00B0FF;
+    --naranja:#FF6D00;
+    --texto:#FFFFFF;
+    --texto2:#90CAF9;
+    --borde:#233256;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--texto);
+    font-family:"Segoe UI", "Inter", system-ui, sans-serif;
+    min-height:100vh;
+  }
+  .app{ display:grid; grid-template-columns:1fr; gap:14px; padding:16px 18px 40px; max-width:1600px; margin:0 auto;}
+  h1{ font-size:1.15rem; letter-spacing:.08em; text-transform:uppercase; color:var(--texto2); font-weight:700; margin:6px 0 2px;}
+  .sub{color:#5f7bb0; font-size:.78rem; margin-bottom:10px;}
+
+  /* ===== ZONA SUPERIOR ===== */
+  .top{ background:var(--panel); border:1px solid var(--borde); border-radius:14px; padding:16px 18px; display:flex; flex-wrap:wrap; gap:16px; align-items:center; justify-content:space-between;}
+  .input-wrap{ display:flex; align-items:center; gap:10px;}
+  #numInput{ width:120px; font-size:1.6rem; text-align:center; padding:10px 8px; border-radius:10px; border:2px solid var(--borde); background:var(--panel2); color:var(--texto); font-weight:700;}
+  #numInput:focus{ outline:none; border-color:var(--azul);}
+  .btn{ background:var(--azul); color:#00111a; border:none; padding:11px 16px; border-radius:10px; font-weight:700; cursor:pointer; font-size:.9rem;}
+  .btn.secondary{ background:transparent; color:var(--texto2); border:1px solid var(--borde);}
+  .btn.small{ padding:6px 10px; font-size:.75rem;}
+  .counter{ font-weight:700; font-size:.95rem;}
+  .counter.active{ color:var(--verde);}
+  .chips{ display:flex; gap:6px; flex-wrap:wrap; max-width:420px;}
+  .chip{ width:30px; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:.78rem; font-weight:700; color:#fff;}
+  .chip.d0{ background:#555;} .chip.d1{ background:var(--azul); color:#00111a;} .chip.d2{ background:var(--naranja);} .chip.d3{ background:var(--verde); color:#00220f;}
+  .modo-select{ display:flex; gap:6px; background:var(--panel2); padding:5px; border-radius:10px;}
+  .modo-select button{ background:transparent; border:none; color:var(--texto2); padding:8px 14px; border-radius:8px; font-weight:700; cursor:pointer; font-size:.8rem;}
+  .modo-select button.active{ background:var(--azul); color:#00111a;}
+
+  /* ===== GRID PRINCIPAL ===== */
+  .main-grid{ display:grid; grid-template-columns: 320px 1fr 340px; gap:14px; align-items:start;}
+  @media (max-width:1200px){ .main-grid{grid-template-columns:1fr;} }
+
+  .col{ display:flex; flex-direction:column; gap:12px;}
+
+  .panel{ background:var(--panel); border:1px solid var(--borde); border-radius:14px; padding:14px 16px;}
+  .panel h2{ font-size:.72rem; letter-spacing:.1em; text-transform:uppercase; color:var(--texto2); margin:0 0 10px;}
+
+  .docena-panel{ border-left:4px solid var(--borde); transition:border-color .2s;}
+  .docena-panel.rec{ border-color:var(--verde); box-shadow:0 0 0 1px rgba(0,230,118,.25) inset;}
+  .docena-panel.veto{ border-color:var(--rojo);}
+  .docena-panel.sat{ border-color:var(--naranja);}
+  .docena-panel.act{ border-color:var(--amarillo);}
+  .docena-panel .titulo{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px;}
+  .docena-panel .titulo b{ font-size:1rem;}
+  .docena-panel .titulo span{ color:#7d93c4; font-size:.72rem;}
+  .fila{ display:flex; justify-content:space-between; font-size:.8rem; padding:3px 0; border-bottom:1px dashed #1e2b4d; color:#c6d5f5;}
+  .fila b{ color:#fff;}
+  .tag{ display:inline-block; padding:1px 7px; border-radius:6px; font-size:.68rem; font-weight:700;}
+  .tag.ok{ background:rgba(0,230,118,.18); color:var(--verde);}
+  .tag.bad{ background:rgba(255,82,82,.18); color:var(--rojo);}
+  .tag.warn{ background:rgba(255,183,77,.18); color:var(--amarillo);}
+  .ciclos{ display:flex; gap:6px; margin:4px 0;}
+  .ciclos span{ font-size:.72rem; padding:2px 6px; border-radius:6px; background:#1e2b4d;}
+  .ciclos span.on{ background:rgba(0,176,255,.25); color:var(--azul);}
+
+  /* ===== TABLA CENTRAL ===== */
+  table{ width:100%; border-collapse:collapse; font-size:.75rem;}
+  th{ text-align:center; color:var(--texto2); padding:5px 4px; position:sticky; top:0; background:var(--panel);}
+  td{ text-align:center; padding:4px; border-bottom:1px solid #1a2540;}
+  .num-cell{ font-weight:700; border-radius:6px; }
+  .num-cell.d1{ color:var(--azul);} .num-cell.d2{ color:var(--naranja);} .num-cell.d3{ color:var(--verde);} .num-cell.d0{ color:#aaa;}
+  .tbl-scroll{ max-height:520px; overflow-y:auto;}
+
+  /* ===== ZONA DECISION ===== */
+  .decision{ text-align:center;}
+  .decision .jugar{ font-size:1.3rem; font-weight:800; margin:4px 0;}
+  .scorebar{ height:10px; border-radius:6px; background:#1a2540; overflow:hidden; margin:8px 0;}
+  .scorebar > div{ height:100%; border-radius:6px; background:linear-gradient(90deg,var(--azul),var(--verde));}
+  .decision-tag{ font-weight:800; font-size:.95rem; padding:6px 10px; border-radius:8px; display:inline-block; margin:4px 0;}
+  .razones{ text-align:left; font-size:.78rem; margin-top:10px; display:flex; flex-direction:column; gap:4px;}
+  .razones div{ display:flex; gap:6px; align-items:flex-start;}
+
+  .secundaria-block{ margin-top:14px; padding-top:12px; border-top:1px solid var(--borde);}
+
+  /* ===== ESTADISTICAS ===== */
+  .stats-panel{ border:2px solid var(--borde); transition:border-color .2s;}
+  .stats-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:8px; font-size:.8rem;}
+  .stat-box{ background:var(--panel2); border-radius:10px; padding:8px 10px;}
+  .stat-box .lbl{ color:#7d93c4; font-size:.68rem; text-transform:uppercase;}
+  .stat-box .val{ font-size:1.1rem; font-weight:800;}
+  .racha-chips{ display:flex; gap:4px; margin-top:8px; flex-wrap:wrap;}
+  .rchip{ width:22px; height:22px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:.7rem; cursor:pointer;}
+  .rchip.win{ background:rgba(0,230,118,.25); color:var(--verde);}
+  .rchip.lose{ background:rgba(255,82,82,.25); color:var(--rojo);}
+  .rchip.pend{ background:#333; color:#aaa;}
+
+  .empty-state{ color:#5f7bb0; font-size:.8rem; text-align:center; padding:20px 0;}
+  .detalle-señal{ font-size:.75rem; background:var(--panel2); border-radius:8px; padding:8px; margin-top:8px; color:var(--texto2);}
+
+  /* ===== TOAST / ALERTAS ===== */
+  #toastContainer{ position:fixed; top:16px; right:16px; z-index:999; display:flex; flex-direction:column; gap:8px; max-width:320px;}
+  .toast{ background:var(--panel); border:1px solid var(--borde); border-left:4px solid var(--azul); border-radius:10px; padding:10px 14px; font-size:.82rem; box-shadow:0 4px 18px rgba(0,0,0,.4); animation:slideIn .25s ease-out;}
+  .toast.premium{ border-left-color:var(--verde);}
+  .toast.info{ border-left-color:var(--texto2);}
+  @keyframes slideIn{ from{transform:translateX(30px); opacity:0;} to{transform:translateX(0); opacity:1;} }
+
+  /* ===== INDICADORES ESPECIALES ===== */
+  .indicadores{ display:flex; flex-wrap:wrap; gap:8px;}
+  .indicador{ font-size:.78rem; font-weight:700; padding:6px 12px; border-radius:8px; background:var(--panel2); border:1px solid var(--borde);}
+  .indicador.sat{ color:var(--naranja); border-color:var(--naranja);}
+  .indicador.reac{ color:var(--azul); border-color:var(--azul);}
+  .indicador.ciclo{ color:var(--amarillo); border-color:var(--amarillo);}
+</style>
+</head>
+<body>
+<div id="toastContainer"></div>
+<div class="app">
+  <div>
+    <h1>Rouledict5</h1>
+    <div class="sub">Motor de análisis de patrones — ruleta virtual · uso informativo, no garantiza resultados</div>
+  </div>
+
+  <div class="panel indicadores" id="panelIndicadores" style="display:none;"></div>
+
+  <!-- ZONA SUPERIOR -->
+  <div class="top">
+    <div class="input-wrap">
+      <input id="numInput" type="number" min="0" max="36" placeholder="0-36" autofocus>
+      <button class="btn" id="btnEnter">Enter ↵</button>
+      <button class="btn secondary small" id="btnUndo">Deshacer</button>
+      <button class="btn secondary small" id="btnReset">Reset</button>
+      <button class="btn secondary small" id="btnExport">Exportar Excel</button>
+    </div>
+    <div id="counter" class="counter">Tiros: 0/50</div>
+    <div class="chips" id="chipsHistorial"></div>
+    <div class="modo-select">
+      <button id="modo1D" class="active">1 DOCENA</button>
+      <button id="modo2D">2 DOCENAS</button>
+    </div>
+    <div class="modo-select" title="Conservador = umbrales del spec original. Agresivo = umbrales más bajos, más señales pero sin mejor precisión real.">
+      <button id="sensConservador" class="active">🛡 Conservador</button>
+      <button id="sensAgresivo">⚡ Agresivo</button>
+    </div>
+  </div>
+  <div class="sub" id="sensInfo" style="margin-top:-4px;"></div>
+
+  <div class="main-grid">
+    <!-- ZONA IZQUIERDA -->
+    <div class="col" id="panelesDocenas"></div>
+
+    <!-- ZONA CENTRAL -->
+    <div class="panel">
+      <h2>Últimos 30 tiros</h2>
+      <div class="tbl-scroll">
+        <table>
+          <thead><tr><th>#</th><th>Núm</th><th>Docena</th><th>Aus D1</th><th>Aus D2</th><th>Aus D3</th></tr></thead>
+          <tbody id="tablaBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ZONA DERECHA + ESTADISTICAS -->
+    <div class="col">
+      <div class="panel decision" id="panelDecision"></div>
+      <div class="panel stats-panel" id="panelStats"></div>
+    </div>
+  </div>
+
+  <!-- HISTORIAL COMPLETO DE SEÑALES -->
+  <div class="panel" id="panelHistorialFull">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
+      <h2 style="margin:0;">📋 Historial de señales — <span id="hLabelModo">1 DOCENA</span></h2>
+      <div style="display:flex; gap:6px;">
+        <button class="btn secondary small" id="hFiltroTodas">Todas</button>
+        <button class="btn secondary small" id="hFiltroGanadas">✅ Ganadas</button>
+        <button class="btn secondary small" id="hFiltroPerdidas">❌ Perdidas</button>
+        <button class="btn secondary small" id="hFiltroPendientes">⏳ Pendientes</button>
+      </div>
+    </div>
+    <div class="tbl-scroll" style="max-height:340px;">
+      <table>
+        <thead><tr>
+          <th>#</th><th>Tiro</th><th>Docena(s)</th><th>Score</th><th>Nivel</th><th>Resultado</th><th>Tiros p/ resolver</th>
+        </tr></thead>
+        <tbody id="historialSeñalesBody"></tbody>
+      </table>
+    </div>
+    <div id="detalleSeñal"></div>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   CONFIG (Sección 15)
+   ========================================================= */
+const CFG_CONSERVADOR = {
+  TIROS_MINIMOS: 50,
+  AF_F30_VETO: 0.10,
+  AF_F30_VETO_ACTIVA: 0.18,
+  AF_F30_OPTIMO: 0.15,
+  AF_F30_PREMIUM: 0.20,
+  ZONA_IDEAL: 0.40,
+  ZONA_SANA: 0.33,
+  ZONA_ADVERTENCIA: 0.25,
+  RATIO_DOM_MINIMO: 1.4,
+  RATIO_DOM_OPTIMO: 1.7,
+  AUS_OPTIMA_MIN: 3,
+  AUS_OPTIMA_MAX: 8,
+  AUS_OTRAS_MAX: 9,
+  AUS_CRITICA: 12,
+  SAT_VETO_ULTIMOS5: 3,
+  SAT_ALERTA_ULTIMOS5: 2,
+  AF_FONDO_PROFUNDO: -0.08,
+  EMA_PESO_NUEVO: 0.65,
+  EMA_PESO_VIEJO: 0.35,
+  SCORE_PREMIUM: 17,
+  SCORE_MUY_BUENO: 14,
+  SCORE_REVISAR: 10,
+  SCORE_ESPERAR: 6,
+  SCORE_CICLO_CORTO: 10,
+  SCORE_MODO2_SECUNDARIA: 10,
+  SCORE_REGISTRAR_SEÑAL: 10,
+  MAX_TIROS_RESOLUCION: 15,
+  CHIPS_HISTORIAL: 10,
+  MIN_TIROS_SEÑALES_1D: 5,
+  MIN_TIROS_SEÑALES_2D: 3,
+  MIN_MEJORA_SCORE: 3
+};
+
+// Umbrales más bajos: más señales, mismo motor — no implica mejor precisión real (ver estadísticas).
+const CFG_AGRESIVO = {
+  ...CFG_CONSERVADOR,
+  AF_F30_VETO: 0.05,
+  AF_F30_VETO_ACTIVA: 0.10,
+  AF_F30_OPTIMO: 0.09,
+  AF_F30_PREMIUM: 0.14,
+  ZONA_SANA: 0.30,
+  ZONA_ADVERTENCIA: 0.22,
+  RATIO_DOM_MINIMO: 1.2,
+  RATIO_DOM_OPTIMO: 1.4,
+  SCORE_PREMIUM: 14,
+  SCORE_MUY_BUENO: 10,
+  SCORE_REVISAR: 7,
+  SCORE_ESPERAR: 4,
+  SCORE_CICLO_CORTO: 7,
+  SCORE_MODO2_SECUNDARIA: 7,
+  SCORE_REGISTRAR_SEÑAL: 7,
+  MIN_TIROS_SEÑALES_1D: 3,
+  MIN_TIROS_SEÑALES_2D: 2,
+  MIN_MEJORA_SCORE: 2
+};
+
+const CFG = { ...CFG_CONSERVADOR };
+
+function aplicarSensibilidad(tipo){
+  const fuente = tipo==='AGRESIVO' ? CFG_AGRESIVO : CFG_CONSERVADOR;
+  Object.assign(CFG, fuente);
+  document.getElementById('sensConservador').classList.toggle('active', tipo==='CONSERVADOR');
+  document.getElementById('sensAgresivo').classList.toggle('active', tipo==='AGRESIVO');
+  document.getElementById('sensInfo').textContent = tipo==='AGRESIVO'
+    ? '⚡ Modo agresivo: umbrales más bajos → más señales, misma falta de ventaja real sobre el azar (ver estadísticas de efectividad).'
+    : 'Motor de análisis de patrones — ruleta virtual · uso informativo, no garantiza resultados';
+  if(State.historial.length) render();
+}
+document.getElementById('sensConservador').addEventListener('click', ()=>aplicarSensibilidad('CONSERVADOR'));
+document.getElementById('sensAgresivo').addEventListener('click', ()=>aplicarSensibilidad('AGRESIVO'));
+
+/* =========================================================
+   ESTADO GLOBAL
+   ========================================================= */
+const State = {
+  historial: [],          // números en orden cronológico (0 = primero)
+  af30Hist: {1:[], 2:[], 3:[]}, // cada elemento = af30 en ese tiro (más reciente al final)
+  modo: '1D',
+  señales: [],
+  señalIdSeq: 0,
+  ultimaSeñal: {1:null,2:null}, // por modo: {tiro, docena, score}
+};
+
+function getDocena(n){
+  if(n===0) return 0;
+  if(n>=1 && n<=12) return 1;
+  if(n>=13 && n<=24) return 2;
+  if(n>=25 && n<=36) return 3;
+  return -1;
+}
+
+/* =========================================================
+   CÁLCULOS POR DOCENA (Sección 2)
+   ========================================================= */
+function ultimosN(n){
+  return State.historial.slice(Math.max(0, State.historial.length-n)).reverse(); // más reciente primero
+}
+
+function frecuencias(docena){
+  const calc = (n) => ultimosN(n).filter(x=>getDocena(x)===docena).length;
+  return { F10: calc(10), F20: calc(20), F30: calc(30), F50: calc(50) };
+}
+
+function calcAF(F){
+  return {
+    af10_f20: (F.F10/10) - (F.F20/20),
+    af10_f30: (F.F10/10) - (F.F30/30),
+    af10_f50: (F.F10/10) - (F.F50/50)
+  };
+}
+
+function ausencia(docena){
+  let aus = 0;
+  const hist = ultimosN(State.historial.length);
+  for(const n of hist){
+    if(getDocena(n)===docena) break;
+    aus++;
+  }
+  return aus;
+}
+
+function apariciones(docena, n){
+  return ultimosN(n).filter(x=>getDocena(x)===docena).length;
+}
+
+function ciclos(docena){
+  const h = ultimosN(30);
+  const C1 = h.slice(0,10).some(x=>getDocena(x)===docena);
+  const C2 = h.slice(10,20).some(x=>getDocena(x)===docena);
+  const C3 = h.slice(20,30).some(x=>getDocena(x)===docena);
+  return {C1,C2,C3};
+}
+
+function estadoDesdeAF(af30_t1, af30_t2, zonaPct){
+  const t1=af30_t1, t2=af30_t2 ?? 0;
+  if(t1>0.15 && t1 > t2*1.5) return 'EXPLOSION';
+  if(t1>t2 && t2>0 && t1>0.08) return 'CRECIENTE';
+  if(t1>0.10 && t1>=t2) return 'IDEAL';
+  if(t2<0 && t1>0) return 'REACTIVACION';
+  if(Math.abs(t1-t2)<0.03 && t1>0) return 'ESTABLE';
+  if(t1<-0.10) return 'PELIGRO';
+  return 'NEUTRAL';
+}
+
+function zonaDesdePct(pct){
+  if(pct>=CFG.ZONA_IDEAL) return 'IDEAL';
+  if(pct>=CFG.ZONA_SANA) return 'SANA';
+  if(pct>=CFG.ZONA_ADVERTENCIA) return 'ADVERTENCIA';
+  return 'PELIGRO';
+}
+
+function calcEMA(af30arr){ // af30arr = [t1,t2,t3,t4]
+  const [t1,t2,t3,t4] = af30arr.map(v=>v??0);
+  const EMA1 = t1;
+  const EMA2 = (t2*CFG.EMA_PESO_VIEJO) + (EMA1*CFG.EMA_PESO_NUEVO);
+  const EMA3 = (t3*CFG.EMA_PESO_VIEJO) + (EMA2*CFG.EMA_PESO_NUEVO);
+  const EMA4 = (t4*CFG.EMA_PESO_VIEJO) + (EMA3*CFG.EMA_PESO_NUEVO);
+  return {EMA1,EMA2,EMA3,EMA4};
+}
+
+function calcFase(docena, af30arr, aus){
+  const ap5 = apariciones(docena,5);
+  const [t1,t2,t3] = af30arr;
+  if(ap5>=CFG.SAT_VETO_ULTIMOS5) return 'FASE1_SATURACION';
+  if(ap5===CFG.SAT_ALERTA_ULTIMOS5) return 'FASE1B_ACTIVA';
+
+  if(t1!=null && t2!=null && t1>=0.10 && t1>t2 && t2>(t3??-999) && ap5<=1 && aus>=5) return 'FASE5_REACTIVACION';
+  if(t1!=null && t2!=null && t3!=null && t1>t2 && t2>t3 && t1<0.03) return 'FASE4_REBOTE';
+  if(t1!=null && t2!=null && t3!=null && t1>t2 && t2<=t3 && t2<=0.02) return 'FASE3_FONDO';
+  if(ap5<=1 && t1!=null && t1<0) return 'FASE2_DESCANSO'; // viene de saturación, af30 aún negativa
+  return 'NORMAL';
+}
+
+/* =========================================================
+   ANÁLISIS COMPLETO POR DOCENA
+   ========================================================= */
+function analizarDocena(docena, pctZona){
+  const F = frecuencias(docena);
+  const AF = calcAF(F);
+  const aus = ausencia(docena);
+  const cyc = ciclos(docena);
+  const ap5 = apariciones(docena,5);
+  const ap10 = apariciones(docena,10);
+  const zona = zonaDesdePct(pctZona);
+
+  // actualizar historial af30 (guardamos SIEMPRE, así t1..t4 son los últimos 4 tiros)
+  const arr = State.af30Hist[docena];
+  const af30arrForCalc = [arr[arr.length-1], arr[arr.length-2], arr[arr.length-3], arr[arr.length-4]]; // t1(prev)...  (antes de push actual)
+  // t1 actual es AF.af10_f30 (recién calculado, aún no pusheado)
+  const t1 = AF.af10_f30;
+  const t2 = af30arrForCalc[0] ?? null;
+  const t3 = af30arrForCalc[1] ?? null;
+  const t4 = af30arrForCalc[2] ?? null;
+
+  const estado = estadoDesdeAF(t1, t2, pctZona);
+  const ema = calcEMA([t1,t2,t3,t4]);
+  const fase = calcFase(docena, [t1,t2,t3], aus);
+
+  return { docena, F, AF, t1,t2,t3,t4, aus, cyc, ap5, ap10, zona, estado, ema, fase };
+}
+
+/* =========================================================
+   REGLAS AF F30 (Sección 5) + VETOS
+   ========================================================= */
+function evaluarReglas(a){
+  const razones = [];
+  let veto = null;
+  let puntos = 0; // capa 2
+
+  const umbral = (a.fase==='FASE1B_ACTIVA') ? CFG.AF_F30_VETO_ACTIVA : CFG.AF_F30_VETO;
+
+  // REGLA 1 — umbral
+  if(a.t1 < umbral){
+    veto = 'AF F30 insuficiente';
+  } else {
+    puntos += 1;
+    if(a.t1>=CFG.AF_F30_OPTIMO) puntos+=1;
+    if(a.t1>=CFG.AF_F30_PREMIUM) puntos+=1;
+  }
+
+  // REGLA 2 — tendencia
+  if(!veto){
+    if(a.t2!=null && a.t2<0 && a.t1>0) veto = 'Cruce hace 1 tiro';
+    else if(a.t3!=null && a.t3<0 && a.t2>0) veto = 'Cruce hace 2 tiros';
+    else if(a.t4!=null && a.t4<0 && a.t3>0) veto = 'Cruce hace 3 tiros';
+    else if(a.t2!=null && a.t1 < a.t2) veto = 'AF F30 cayendo';
+  }
+  if(!veto){
+    if(a.t4!=null && a.t3!=null && a.t2!=null && a.t4<a.t3 && a.t3<a.t2 && a.t2<a.t1 && a.t4>0){
+      puntos += 2; razones.push({tipo:'ok', txt:'↗ Tendencia limpia'});
+    } else if(a.t2!=null && a.t3!=null && a.t2<a.t3 && a.t1>a.t2){
+      razones.push({tipo:'warn', txt:'⚠ Valle detectado'});
+    } else if(a.t2!=null && a.t1===a.t2){
+      razones.push({tipo:'warn', txt:'⚠ Estancada'});
+    }
+    if(a.t2!=null && a.t1>a.t2 && a.t2<0){
+      razones.push({tipo:'info', txt:'📉 Fondo detectado'});
+    }
+    if(a.t3!=null && a.t2!=null && a.t1>a.t2 && a.t2>a.t3 && a.t3<0){
+      razones.push({tipo:'info', txt:'📈 Rebote en progreso'});
+    }
+  }
+
+  // REGLA 3 — EMA
+  if(!veto){
+    const {EMA1,EMA2,EMA3,EMA4} = a.ema;
+    if(EMA1>EMA2 && EMA2>EMA3 && EMA3>EMA4){
+      puntos += 2; razones.push({tipo:'ok', txt:'✅ EMA ascendente'});
+    } else if(EMA2>EMA1){
+      puntos -= 1; razones.push({tipo:'bad', txt:'⚠ EMA en pico'});
+    }
+  }
+
+  // saturación
+  if(a.ap5>=CFG.SAT_VETO_ULTIMOS5) veto='Saturación — esperar descanso';
+
+  if(a.estado==='PELIGRO' || a.zona==='PELIGRO') veto = veto || `Estado/Zona PELIGRO`;
+
+  if(veto) razones.unshift({tipo:'bad', txt:'❌ VETO: '+veto});
+  else razones.unshift({tipo: a.t1>=umbral? 'ok':'warn', txt:`AF F30: ${a.t1.toFixed(2)}`});
+
+  return {veto, puntos, razones, umbral};
+}
+
+/* =========================================================
+   FILTROS ADICIONALES + DOMINANCIA
+   ========================================================= */
+function filtrosAdicionales(a, otras){
+  let puntos = 0;
+  const razones = [];
+  const { af10_f20, af10_f30 } = a.AF;
+
+  if(af10_f20 > a.t1 && a.t1 > a.AF.af10_f50){
+    puntos += 1; razones.push({tipo:'ok', txt:'AF20>AF30>AF50'});
+  } else if(a.AF.af10_f50 > af10_f20){
+    razones.push({tipo:'warn', txt:'⚠ AF50 > AF20'});
+  }
+
+  const otrasNeg = otras.every(o=>o.t1<0);
+  if(otrasNeg) { puntos+=2; razones.push({tipo:'ok', txt:'Otras 2 docenas negativas'}); }
+
+  const maxOtra = Math.max(...otras.map(o=>Math.max(o.t1,0.0001)));
+  const ratio = a.t1>0 ? a.t1/maxOtra : 0;
+  if(ratio>=CFG.RATIO_DOM_OPTIMO){ puntos+=2; razones.push({tipo:'ok', txt:`Dominancia ratio ${ratio.toFixed(1)}`});}
+  else if(ratio>=CFG.RATIO_DOM_MINIMO){ puntos+=1; razones.push({tipo:'ok', txt:`Dominancia ratio ${ratio.toFixed(1)}`});}
+  else razones.push({tipo:'warn', txt:`⚠ Ratio dominancia bajo (${ratio.toFixed(1)})`});
+
+  if(a.aus>=0 && a.aus<=2 && a.t1>=0.20){ puntos+=1; }
+  else if(a.aus>=0 && a.aus<=2 && a.t1<0.15){ puntos-=1; razones.push({tipo:'warn', txt:'⚠ Ausencia baja'}); }
+  if(a.aus>=3 && a.aus<=8 && a.t1>=0.10){ puntos+=1; razones.push({tipo:'ok', txt:'Ausencia óptima'});}
+  else if(a.aus>=CFG.AUS_CRITICA){ puntos-=1; razones.push({tipo:'bad', txt:'⚠ Ausencia crítica'}); }
+  else if(otras.some(o=>o.aus>=CFG.AUS_OTRAS_MAX)){ puntos-=1; }
+
+  return {puntos, razones, ratio};
+}
+
+/* =========================================================
+   SATURACIÓN + ACELERACIÓN — entrada en docena secundaria (Sección 4)
+   ========================================================= */
+function chequeoSecundariaSaturacion(a, otras){
+  const haySaturada = otras.some(o=>o.ap5>=CFG.SAT_VETO_ULTIMOS5);
+  if(!haySaturada) return false;
+  const ap10 = a.ap10;
+  if(ap10<=1) return a.aus>=2 && a.t1>=0.15;
+  if(ap10===2) return a.aus>=3 && a.aus<=4 && a.t1>=0.13;
+  return a.aus>=5 && a.t2!=null && a.t3!=null && a.t1>a.t2 && a.t2>a.t3;
+}
+
+/* =========================================================
+   SCORING UNIFICADO (Sección 6)
+   ========================================================= */
+function calcularScore(a, otras, pctZona){
+  if(a.ap5>=CFG.SAT_VETO_ULTIMOS5){
+    return { score:0, nivel:'VETO', razon:'Saturación activa', decision:'❌ VETO — Saturación', razones:[{tipo:'bad',txt:'⚠ Saturación — esperar descanso'}], entry:false };
+  }
+
+  const reglas = evaluarReglas(a);
+  const filtros = filtrosAdicionales(a, otras);
+
+  // bypass por saturación de otra docena (Sección 4)
+  let bypassSaturacion = false;
+  if(reglas.veto === 'AF F30 insuficiente' && chequeoSecundariaSaturacion(a, otras)){
+    reglas.veto = null;
+    bypassSaturacion = true;
+    reglas.razones.unshift({tipo:'ok', txt:'🔓 Entrada secundaria — otra docena saturada'});
+  }
+
+  // CAPA 1 — estructural (max 6)
+  let capa1 = 0;
+  if(a.estado==='CRECIENTE' || a.estado==='IDEAL') capa1 += 2;
+  else if(a.estado==='ESTABLE') capa1 += 1;
+  else if(a.estado==='PELIGRO') capa1 -= 2;
+
+  if(a.zona==='IDEAL') capa1 += 2;
+  else if(a.zona==='SANA') capa1 += 1;
+  else if(a.zona==='PELIGRO') capa1 -= 2;
+
+  const cyc = a.cyc;
+  const cycCount = [cyc.C1,cyc.C2,cyc.C3].filter(Boolean).length;
+  if(cycCount>=3) capa1 += 2;
+  else if(cycCount===2) capa1 += 1;
+
+  // CAPA 2
+  let capa2 = reglas.puntos + filtros.puntos;
+
+  let score = Math.max(0, Math.min(20, capa1 + capa2));
+  let razones = [...reglas.razones, ...filtros.razones];
+
+  // Ciclo Corto — bypassa vetos normales, score mínimo garantizado (Sección 2)
+  if(a.fase==='CICLO_CORTO'){
+    razones.unshift({tipo:'ok', txt:'⚡ Ciclo corto detectado'});
+    return { score:Math.max(score, CFG.SCORE_CICLO_CORTO), nivel:'CICLO_CORTO', decision:'⚡ Ciclo corto', razones, entry:true };
+  }
+
+  // VETOS duros
+  let veto = reglas.veto;
+  if(!veto){
+    // lógica ENTRY por zona/ciclos (Sección 3)
+    const entryOk = evaluarEntryZonaCiclos(a);
+    if(!entryOk.ok && !bypassSaturacion) veto = entryOk.razon;
+  }
+
+  // ESTADO adicional — EXPLOSION / REACTIVACION exigen AF30 alto (Sección 3)
+  if(!veto){
+    if(a.estado==='EXPLOSION' && !(a.t1>=CFG.AF_F30_PREMIUM && cycCount>=3)){
+      veto = 'EXPLOSIÓN requiere AF30≥0.20 y C1+C2+C3';
+    } else if(a.estado==='REACTIVACION' && !(a.t1>=CFG.AF_F30_PREMIUM)){
+      veto = 'REACTIVACIÓN (estado) requiere AF30≥0.20';
+    }
+  }
+
+  if(a.estado==='PELIGRO') veto = veto || 'Estado PELIGRO';
+
+  if(veto){
+    return { score:0, nivel:'VETO', razon:veto, decision:'❌ VETO — '+veto, razones, entry:false };
+  }
+
+  // fase 5 — reactivación post-saturación (score garantizado)
+  if(a.fase==='FASE5_REACTIVACION'){
+    if(a.t1>=0.20){
+      return { score:Math.max(score,14), nivel:'REACTIVACION', decision:'🔄 REACTIVACIÓN', razones, entry:true };
+    }
+  }
+
+  let nivel, decision;
+  if(score>=CFG.SCORE_PREMIUM){ nivel='PREMIUM'; decision='✅ ENTRAR PREMIUM'; }
+  else if(score>=CFG.SCORE_MUY_BUENO){ nivel='MUY_BUENO'; decision='✅ ENTRAR'; }
+  else if(score>=CFG.SCORE_REVISAR){ nivel='REVISAR'; decision='⚠ REVISAR'; }
+  else if(score>=CFG.SCORE_ESPERAR){ nivel='ESPERAR'; decision='⚠ ESPERAR'; }
+  else { nivel='NO_ENTRAR'; decision='❌ NO ENTRAR'; }
+
+  const entry = score>=CFG.SCORE_REVISAR;
+  return { score, nivel, decision, razones, entry, ratio:filtros.ratio };
+}
+
+function evaluarEntryZonaCiclos(a){
+  const c = a.cyc;
+  const cnt = [c.C1,c.C2,c.C3].filter(Boolean).length;
+  const parOk = cnt>=2;
+
+  if(a.zona==='IDEAL'){
+    if(!parOk) return {ok:false, razon:'Sin par de ciclos en zona IDEAL'};
+    return {ok:true};
+  }
+  if(a.zona==='SANA'){
+    if(!parOk) return {ok:false, razon:'Sin par de ciclos en zona SANA'};
+    return {ok:true};
+  }
+  if(a.zona==='ADVERTENCIA'){
+    if(a.estado==='CRECIENTE' && cnt===3) return {ok:true};
+    return {ok:false, razon:'Zona ADVERTENCIA sin condiciones'};
+  }
+  return {ok:false, razon:'Zona PELIGRO'};
+}
+
+/* =========================================================
+   CICLO CORTO (dentro de FASE 2 — Sección 2)
+   ========================================================= */
+function detectarCicloCorto(a, otras){
+  if(a.fase !== 'FASE2_DESCANSO') return false;
+  const hist = State.af30Hist[a.docena];
+  const recientes = hist.slice(-5).concat([a.t1]).filter(v=>v!=null);
+  const nuncaFondoProfundo = recientes.every(v => v > CFG.AF_FONDO_PROFUNDO);
+  const otrasNegativas = otras.every(o=>o.t1<0);
+  const subiendoMinimo = a.t2!=null && a.t1>a.t2;
+  return nuncaFondoProfundo && otrasNegativas && subiendoMinimo
+    && a.aus>=4 && a.aus<=7 && a.ap10<=2;
+}
+
+/* =========================================================
+   MOTOR PRINCIPAL — analiza las 3 docenas
+   ========================================================= */
+function motorAnalizar(){
+  const F30s = [1,2,3].map(d=>frecuencias(d).F30);
+  const totalF30 = F30s.reduce((a,b)=>a+b,0) || 1;
+
+  const analisis = {};
+  [1,2,3].forEach(d=>{
+    const pct = frecuencias(d).F30/totalF30;
+    analisis[d] = analizarDocena(d, pct);
+  });
+
+  // Ciclo Corto: se evalúa cruzando cada docena contra las otras 2
+  [1,2,3].forEach(d=>{
+    const otras = [1,2,3].filter(x=>x!==d).map(x=>analisis[x]);
+    if(detectarCicloCorto(analisis[d], otras)) analisis[d].fase = 'CICLO_CORTO';
+  });
+
+  const resultados = {};
+  [1,2,3].forEach(d=>{
+    const otras = [1,2,3].filter(x=>x!==d).map(x=>analisis[x]);
+    resultados[d] = calcularScore(analisis[d], otras, null);
+  });
+
+  return { analisis, resultados };
+}
+
+/* =========================================================
+   SELECCIÓN POR MODO (Sección 7)
+   ========================================================= */
+function seleccionar(resultados){
+  const docenas = [1,2,3];
+  const ordenado = docenas.slice().sort((a,b)=>resultados[b].score - resultados[a].score);
+
+  if(State.modo==='1D'){
+    const principal = ordenado[0];
+    const r = resultados[principal];
+    if(r.score < CFG.SCORE_REVISAR) return { emitir:false };
+
+    const segundo = resultados[ordenado[1]].score;
+    if(r.score - segundo < 3 && r.ratio && r.ratio<1.4){
+      r.decision += ' (dominancia baja ⚠)';
+    }
+
+    // anti-señales seguidas
+    const last = State.ultimaSeñal['1D'];
+    if(last && (State.historial.length - last.tiro) < CFG.MIN_TIROS_SEÑALES_1D
+       && last.docena===principal && r.score<=last.score){
+      return { emitir:false };
+    }
+
+    return { emitir:true, principal, resultado:r };
+  } else {
+    const principal = ordenado[0];
+    const secundariaIdx = ordenado[1];
+    const rP = resultados[principal];
+    const rS = resultados[secundariaIdx];
+
+    if(rP.score < CFG.SCORE_MUY_BUENO) return { emitir:false };
+
+    let secundaria = null, rSec = null;
+    if(rS.score >= CFG.SCORE_MODO2_SECUNDARIA && !(rS.nivel==='VETO')){
+      secundaria = secundariaIdx; rSec = rS;
+    }
+
+    const last = State.ultimaSeñal['2D'];
+    if(last && (State.historial.length - last.tiro) < CFG.MIN_TIROS_SEÑALES_2D
+       && last.docena===principal && rP.score<=last.score){
+      return { emitir:false };
+    }
+
+    return { emitir:true, principal, resultado:rP, secundaria, resultadoSec:rSec };
+  }
+}
+
+/* =========================================================
+   ESTADÍSTICAS — GestorEstadisticas
+   ========================================================= */
+const Estadisticas = {
+  registrar(señal){
+    señal.resultado = 'PENDIENTE';
+    State.señales.push(señal);
+  },
+  resolverPendientes(tiroActual, numeroActual){
+    const docenaActual = getDocena(numeroActual);
+    State.señales.forEach(s=>{
+      if(s.resultado!=='PENDIENTE') return;
+      const diff = tiroActual - s.tiro_numero;
+      const golpeaPrincipal = docenaActual===s.docena_principal;
+      const golpeaSecundaria = s.docena_secundaria!=null && docenaActual===s.docena_secundaria;
+      if((golpeaPrincipal || golpeaSecundaria) && diff<=CFG.MAX_TIROS_RESOLUCION && diff>=0){
+        s.resultado='GANADA';
+        s.tiros_hasta_ganar = diff;
+        s.tiro_resolucion = tiroActual;
+        s.ganoPor = golpeaPrincipal ? 'principal' : 'secundaria';
+      } else if(diff>CFG.MAX_TIROS_RESOLUCION){
+        s.resultado='PERDIDA';
+        s.tiro_resolucion = tiroActual;
+      }
+    });
+  },
+  statsModo(modo){
+    const list = State.señales.filter(s=>s.modo===modo);
+    const ganadas = list.filter(s=>s.resultado==='GANADA');
+    const perdidas = list.filter(s=>s.resultado==='PERDIDA');
+    const pendientes = list.filter(s=>s.resultado==='PENDIENTE');
+    const resueltas = ganadas.length+perdidas.length;
+    const pct = resueltas? (ganadas.length/resueltas*100):0;
+    const promTiros = ganadas.length? (ganadas.reduce((a,s)=>a+s.tiros_hasta_ganar,0)/ganadas.length):0;
+
+    // rachas
+    let mejor=0, peor=0, actual=0, cur=0, curSign=0;
+    const resueltasOrdenadas = list.filter(s=>s.resultado!=='PENDIENTE');
+    resueltasOrdenadas.forEach(s=>{
+      const val = s.resultado==='GANADA'?1:-1;
+      if(val===curSign){ cur += 1; } else { cur = 1; curSign = val; }
+      if(val===1) mejor = Math.max(mejor, cur);
+      if(val===-1) peor = Math.max(peor, cur);
+    });
+    if(resueltasOrdenadas.length){
+      actual = curSign * cur;
+    }
+
+    const porNivel = {};
+    ['PREMIUM','MUY_BUENO','REVISAR','REACTIVACION','CICLO_CORTO'].forEach(nv=>{
+      const l = list.filter(s=>s.nivel===nv);
+      const g = l.filter(s=>s.resultado==='GANADA').length;
+      const p = l.filter(s=>s.resultado==='PERDIDA').length;
+      porNivel[nv] = { ganadas:g, total:g+p, pct: (g+p)? (g/(g+p)*100):0 };
+    });
+
+    const ganoPrincipal = ganadas.filter(s=>s.ganoPor==='principal').length;
+    const ganoSecundaria = ganadas.filter(s=>s.ganoPor==='secundaria').length;
+
+    return { total:list.length, ganadas:ganadas.length, perdidas:perdidas.length, pendientes:pendientes.length,
+      pct, promTiros, mejor, peor, actual, porNivel, ganoPrincipal, ganoSecundaria, lista:list };
+  },
+  ultimasN(modo, n){
+    return State.señales.filter(s=>s.modo===modo).slice(-n);
+  }
+};
+
+/* =========================================================
+   RENDER
+   ========================================================= */
+function render(){
+  const n = State.historial.length;
+  document.getElementById('counter').textContent = n<CFG.TIROS_MINIMOS
+    ? `Tiros: ${n}/50` : `Tiros: ${n} — ACTIVO ✅`;
+  document.getElementById('counter').className = 'counter'+(n>=CFG.TIROS_MINIMOS?' active':'');
+
+  // chips historial
+  const chipsEl = document.getElementById('chipsHistorial');
+  chipsEl.innerHTML = ultimosN(10).reverse().map(x=>{
+    const d = getDocena(x);
+    return `<div class="chip d${d}">${x}</div>`;
+  }).join('');
+
+  if(n===0){
+    document.getElementById('panelesDocenas').innerHTML = `<div class="panel empty-state">Ingresa el primer número para comenzar el análisis.</div>`;
+    document.getElementById('panelDecision').innerHTML = `<div class="empty-state">Esperando datos...</div>`;
+    renderTabla();
+    renderStats();
+    renderHistorialFull();
+    renderIndicadores(null);
+    return;
+  }
+
+  const { analisis, resultados } = motorAnalizar();
+  renderDocenas(analisis, resultados);
+  renderTabla();
+  renderDecision(analisis, resultados, n);
+  renderStats();
+  renderHistorialFull();
+  renderIndicadores(n>=CFG.TIROS_MINIMOS ? analisis : null);
+}
+
+function renderDocenas(analisis, resultados){
+  const nombres = {1:'DOCENA 1 (1-12)', 2:'DOCENA 2 (13-24)', 3:'DOCENA 3 (25-36)'};
+  const html = [1,2,3].map(d=>{
+    const a = analisis[d];
+    const r = resultados[d];
+    let cls = '';
+    if(r.nivel==='VETO' && a.ap5>=CFG.SAT_VETO_ULTIMOS5) cls='sat';
+    else if(r.nivel==='VETO') cls='veto';
+    else if(a.ap5===CFG.SAT_ALERTA_ULTIMOS5) cls='act';
+    else if(r.entry) cls='rec';
+
+    const tagEstado = `<span class="tag ${a.estado==='PELIGRO'?'bad':(['CRECIENTE','IDEAL','EXPLOSION','REACTIVACION'].includes(a.estado)?'ok':'warn')}">${a.estado}</span>`;
+    const tagZona = `<span class="tag ${a.zona==='PELIGRO'?'bad':(a.zona==='IDEAL'?'ok':'warn')}">${a.zona}</span>`;
+
+    return `
+    <div class="panel docena-panel ${cls}">
+      <div class="titulo"><b>${nombres[d]}</b><span>Fase: ${a.fase.replace('FASE','F').replace('_',' ')}</span></div>
+      <div class="fila"><span>Ausencia</span><b>${a.aus}</b></div>
+      <div class="fila"><span>Zona</span>${tagZona}</div>
+      <div class="fila"><span>Estado</span>${tagEstado}</div>
+      <div class="ciclos">
+        <span class="${a.cyc.C1?'on':''}">C1${a.cyc.C1?'✅':'❌'}</span>
+        <span class="${a.cyc.C2?'on':''}">C2${a.cyc.C2?'✅':'❌'}</span>
+        <span class="${a.cyc.C3?'on':''}">C3${a.cyc.C3?'✅':'❌'}</span>
+      </div>
+      <div class="fila"><span>AF F20</span><b>${a.AF.af10_f20.toFixed(2)}</b></div>
+      <div class="fila"><span>AF F30</span><b>${a.t1.toFixed(2)} ${a.t1>=CFG.AF_F30_OPTIMO?'✅':''}</b></div>
+      <div class="fila"><span>AF F50</span><b>${a.AF.af10_f50.toFixed(2)}</b></div>
+      <div class="fila"><span>Bot</span>${r.entry?'<span class="tag ok">ENTRY ✅</span>':'<span class="tag bad">NO ENTRY</span>'}</div>
+      <div class="fila"><span>Score</span><b>${r.score}/20</b></div>
+    </div>`;
+  }).join('');
+  document.getElementById('panelesDocenas').innerHTML = html;
+}
+
+function renderTabla(){
+  const hist = State.historial;
+  const start = Math.max(0, hist.length-30);
+  let rows = '';
+  for(let i=hist.length-1; i>=start; i--){
+    const numero = hist[i];
+    const d = getDocena(numero);
+    // ausencia en ese punto del historial
+    const hastaAqui = hist.slice(0,i+1);
+    const ausEn = (docena)=>{
+      let a=0;
+      for(let k=hastaAqui.length-1;k>=0;k--){
+        if(getDocena(hastaAqui[k])===docena) break;
+        a++;
+      }
+      return a;
+    };
+    rows += `<tr>
+      <td>${i+1}</td>
+      <td class="num-cell d${d}">${numero}</td>
+      <td class="num-cell d${d}">${d===0?'—':'D'+d}</td>
+      <td>${ausEn(1)}</td><td>${ausEn(2)}</td><td>${ausEn(3)}</td>
+    </tr>`;
+  }
+  document.getElementById('tablaBody').innerHTML = rows;
+}
+
+function renderDecision(analisis, resultados, tiroActual){
+  const n = State.historial.length;
+  if(n < CFG.TIROS_MINIMOS){
+    document.getElementById('panelDecision').innerHTML = `
+      <h2>Decisión</h2>
+      <div class="empty-state">Acumulando datos: ${n}/${CFG.TIROS_MINIMOS} tiros.<br>Las señales de entrada se activan a partir de 50 tiros.</div>`;
+    return;
+  }
+
+  const sel = seleccionar(resultados);
+  let html = `<h2>MODO: ${State.modo==='1D'?'1 DOCENA':'2 DOCENAS'}</h2>`;
+
+  if(!sel.emitir){
+    html += `<div class="empty-state">Sin señal clara en este momento.<br>Mejor score actual: D${maxScoreDocena(resultados)} (${resultados[maxScoreDocena(resultados)].score}/20)</div>`;
+    document.getElementById('panelDecision').innerHTML = html + statsChipsInline();
+    return;
+  }
+
+  const r = sel.resultado, d = sel.principal;
+  const pct = Math.round(r.score/20*100);
+  const colorTag = r.nivel==='PREMIUM'?'ok':(r.nivel==='VETO'?'bad':(r.entry?'ok':'warn'));
+
+  html += `<div class="jugar">JUGAR: D${d}</div>
+    <div>Score: ${r.score}/20</div>
+    <div class="scorebar"><div style="width:${pct}%"></div></div>
+    <div class="decision-tag tag ${colorTag}">${r.decision}</div>
+    <div class="razones">${r.razones.map(rz=>`<div class="tag ${rz.tipo}">${rz.txt}</div>`).join('')}</div>`;
+
+  // registrar señal si corresponde
+  maybeRegistrarSeñal(State.modo, d, r, sel.secundaria, sel.resultadoSec, tiroActual);
+
+  if(State.modo==='2D' && sel.secundaria){
+    const rs = sel.resultadoSec;
+    html += `<div class="secundaria-block">
+      <div style="font-weight:700;">SECUNDARIA: D${sel.secundaria} — Score ${rs.score}/20</div>
+      <div class="tag ${rs.entry?'ok':'warn'}">${rs.decision}</div>
+    </div>`;
+  } else if(State.modo==='2D'){
+    html += `<div class="secundaria-block"><div class="empty-state">Recomendar solo 1 docena (secundaria no cumple umbral)</div></div>`;
+  }
+
+  html += statsChipsInline();
+  document.getElementById('panelDecision').innerHTML = html;
+}
+
+function maxScoreDocena(resultados){
+  return [1,2,3].sort((a,b)=>resultados[b].score-resultados[a].score)[0];
+}
+
+function statsChipsInline(){
+  const chips = Estadisticas.ultimasN(State.modo, CFG.CHIPS_HISTORIAL);
+  if(!chips.length) return '';
+  return `<div style="margin-top:12px;"><div style="font-size:.72rem;color:#7d93c4;margin-bottom:4px;">Últimas señales</div>
+    <div class="racha-chips">${chips.map(s=>`<div class="rchip ${s.resultado==='GANADA'?'win':(s.resultado==='PERDIDA'?'lose':'pend')}" title="Señal #${s.id}">${s.resultado==='GANADA'?'✅':(s.resultado==='PERDIDA'?'❌':'⏳')}</div>`).join('')}</div></div>`;
+}
+
+function maybeRegistrarSeñal(modo, principal, resultado, secundaria, resultadoSec, tiroActual){
+  if(resultado.score < CFG.SCORE_REGISTRAR_SEÑAL) return;
+  const last = State.ultimaSeñal[modo];
+  if(last && last.tiro===tiroActual) return; // ya registrada este tiro
+  const minTiros = modo==='1D'?CFG.MIN_TIROS_SEÑALES_1D:CFG.MIN_TIROS_SEÑALES_2D;
+  if(last && (tiroActual-last.tiro)<minTiros && last.docena===principal && resultado.score<=last.score) return;
+
+  const señal = {
+    id: ++State.señalIdSeq,
+    tiro_numero: tiroActual,
+    modo,
+    docena_principal: principal,
+    docena_secundaria: secundaria || null,
+    score: resultado.score,
+    nivel: resultado.nivel,
+    fase: resultado.nivel==='REACTIVACION'?'REACTIVACION':'NORMAL',
+    resultado: 'PENDIENTE',
+    tiros_hasta_ganar: null,
+    timestamp: new Date().toISOString()
+  };
+  Estadisticas.registrar(señal);
+  State.ultimaSeñal[modo] = { tiro:tiroActual, docena:principal, score:resultado.score };
+
+  if(resultado.score>=CFG.SCORE_MUY_BUENO){
+    const docTxt = secundaria ? `D${principal}+D${secundaria}` : `D${principal}`;
+    mostrarToast(`<b>🔔 Señal ${resultado.nivel}</b><br>${docTxt} — Score ${resultado.score}/20 (tiro ${tiroActual})`,
+      resultado.score>=CFG.SCORE_PREMIUM ? 'premium' : 'info', 6000);
+  }
+}
+
+function renderStats(){
+  const modoLabel = State.modo==='1D'?'1 DOCENA':'2 DOCENAS';
+  const s = Estadisticas.statsModo(State.modo);
+  const panel = document.getElementById('panelStats');
+
+  let borde = 'var(--borde)';
+  if(s.actual>=3) borde='var(--verde)';
+  else if(s.actual>=1) borde='rgba(0,230,118,.5)';
+  else if(s.actual<=-3) borde='var(--rojo)';
+  else if(s.actual<=-1) borde='var(--amarillo)';
+  panel.style.borderColor = borde;
+
+  if(s.total===0){
+    panel.innerHTML = `<h2>📊 Estadísticas — ${modoLabel}</h2><div class="empty-state">Aún no hay señales registradas en este modo.</div>`;
+    return;
+  }
+
+  let extra = '';
+  if(State.modo==='2D'){
+    extra = `<div class="stat-box"><div class="lbl">Ganó principal</div><div class="val">${s.ganoPrincipal}</div></div>
+             <div class="stat-box"><div class="lbl">Ganó secundaria</div><div class="val">${s.ganoSecundaria}</div></div>`;
+  }
+
+  const nivelesLabel = {PREMIUM:'★ PREMIUM', MUY_BUENO:'✅ MUY BUENO', REVISAR:'⚠ REVISAR', REACTIVACION:'🔄 REACTIVACIÓN', CICLO_CORTO:'⚡ CICLO CORTO'};
+  const nivelesHtml = Object.entries(s.porNivel).filter(([,v])=>v.total>0).map(([k,v])=>
+    `<div class="fila"><span>${nivelesLabel[k]}</span><b>${v.ganadas}/${v.total} (${v.pct.toFixed(1)}%)</b></div>`).join('');
+
+  panel.innerHTML = `
+    <h2>📊 Estadísticas — ${modoLabel}</h2>
+    <div class="stats-grid">
+      <div class="stat-box"><div class="lbl">Total señales</div><div class="val">${s.total}</div></div>
+      <div class="stat-box"><div class="lbl">Acierto</div><div class="val" style="color:var(--verde)">${s.pct.toFixed(1)}%</div></div>
+      <div class="stat-box"><div class="lbl">Ganadas</div><div class="val" style="color:var(--verde)">${s.ganadas}</div></div>
+      <div class="stat-box"><div class="lbl">Perdidas</div><div class="val" style="color:var(--rojo)">${s.perdidas}</div></div>
+      <div class="stat-box"><div class="lbl">Pendientes</div><div class="val">${s.pendientes}</div></div>
+      <div class="stat-box"><div class="lbl">Prom. tiros/ganar</div><div class="val">${s.promTiros.toFixed(1)}</div></div>
+      ${extra}
+      <div class="stat-box"><div class="lbl">Mejor racha</div><div class="val">${s.mejor}</div></div>
+      <div class="stat-box"><div class="lbl">Racha actual</div><div class="val">${s.actual}</div></div>
+    </div>
+    <div style="margin-top:10px;">${nivelesHtml || '<div class="empty-state" style="padding:6px 0;">Sin datos por nivel aún</div>'}</div>
+    ${statsChipsInline()}
+  `;
+}
+
+/* =========================================================
+   HISTORIAL COMPLETO DE SEÑALES (todas las rondas señalizadas)
+   ========================================================= */
+let filtroHistorial = 'TODAS';
+
+function renderHistorialFull(){
+  document.getElementById('hLabelModo').textContent = State.modo==='1D'?'1 DOCENA':'2 DOCENAS';
+  const lista = State.señales.filter(s=>s.modo===State.modo)
+    .filter(s=>{
+      if(filtroHistorial==='TODAS') return true;
+      if(filtroHistorial==='GANADAS') return s.resultado==='GANADA';
+      if(filtroHistorial==='PERDIDAS') return s.resultado==='PERDIDA';
+      if(filtroHistorial==='PENDIENTES') return s.resultado==='PENDIENTE';
+      return true;
+    })
+    .slice().reverse(); // más reciente primero
+
+  const body = document.getElementById('historialSeñalesBody');
+  if(!lista.length){
+    body.innerHTML = `<tr><td colspan="7" style="padding:16px; color:#5f7bb0;">Aún no hay señales registradas en este modo (se necesitan 50+ tiros y score ≥ 10).</td></tr>`;
+    document.getElementById('detalleSeñal').innerHTML = '';
+    return;
+  }
+
+  body.innerHTML = lista.map(s=>{
+    const docs = s.docena_secundaria ? `D${s.docena_principal} + D${s.docena_secundaria}` : `D${s.docena_principal}`;
+    const resIcon = s.resultado==='GANADA' ? '<span class="tag ok">✅ GANADA</span>'
+      : s.resultado==='PERDIDA' ? '<span class="tag bad">❌ PERDIDA</span>'
+      : '<span class="tag warn">⏳ PENDIENTE</span>';
+    const tirosTxt = s.tiros_hasta_ganar!=null ? s.tiros_hasta_ganar : (s.resultado==='PERDIDA'?`>${CFG.MAX_TIROS_RESOLUCION}`:'—');
+    return `<tr class="fila-señal" data-id="${s.id}" style="cursor:pointer;">
+      <td>#${s.id}</td><td>${s.tiro_numero}</td><td>${docs}</td><td>${s.score}/20</td>
+      <td>${s.nivel}</td><td>${resIcon}</td><td>${tirosTxt}</td>
+    </tr>`;
+  }).join('');
+
+  document.querySelectorAll('.fila-señal').forEach(tr=>{
+    tr.addEventListener('click', ()=>{
+      const id = parseInt(tr.dataset.id,10);
+      const s = State.señales.find(x=>x.id===id);
+      mostrarDetalleSeñal(s);
+    });
+  });
+}
+
+function mostrarDetalleSeñal(s){
+  const docs = s.docena_secundaria ? `D${s.docena_principal} + D${s.docena_secundaria}` : `D${s.docena_principal}`;
+  let texto = `Señal #${s.id} — ${docs} — Score ${s.score} — ${s.nivel}\nTiro ${s.tiro_numero} → `;
+  if(s.resultado==='GANADA'){
+    texto += `Resolvió en tiro ${s.tiro_resolucion} (${s.tiros_hasta_ganar} tiros) ✅`;
+    if(s.docena_secundaria) texto += ` — ganó por docena ${s.ganoPor}`;
+  } else if(s.resultado==='PERDIDA'){
+    texto += `Sin acierto en ${CFG.MAX_TIROS_RESOLUCION} tiros (resuelto en tiro ${s.tiro_resolucion}) ❌`;
+  } else {
+    texto += `Pendiente de resolución (faltan ${CFG.MAX_TIROS_RESOLUCION-(State.historial.length-s.tiro_numero)} tiros) ⏳`;
+  }
+  document.getElementById('detalleSeñal').innerHTML =
+    `<div class="detalle-señal">${texto.replace(/\n/g,'<br>')}</div>`;
+}
+
+['hFiltroTodas','hFiltroGanadas','hFiltroPerdidas','hFiltroPendientes'].forEach(id=>{
+  document.getElementById(id).addEventListener('click', ()=>{
+    filtroHistorial = {hFiltroTodas:'TODAS', hFiltroGanadas:'GANADAS', hFiltroPerdidas:'PERDIDAS', hFiltroPendientes:'PENDIENTES'}[id];
+    renderHistorialFull();
+  });
+});
+
+/* =========================================================
+   TOASTS / ALERTAS
+   ========================================================= */
+function mostrarToast(texto, tipo='info', duracionMs=5000){
+  const cont = document.getElementById('toastContainer');
+  const el = document.createElement('div');
+  el.className = 'toast '+tipo;
+  el.innerHTML = texto;
+  cont.appendChild(el);
+  setTimeout(()=>{ el.remove(); }, duracionMs);
+}
+
+/* =========================================================
+   INDICADORES ESPECIALES (Sección 9 — zona derecha)
+   ========================================================= */
+function renderIndicadores(analisis){
+  const panel = document.getElementById('panelIndicadores');
+  if(!analisis){ panel.style.display='none'; return; }
+  const items = [];
+  [1,2,3].forEach(d=>{
+    const a = analisis[d];
+    if(a.fase==='FASE1_SATURACION') items.push({cls:'sat', txt:`⚠ D${d} saturada — Fase: DESCANSO`});
+    else if(a.fase==='FASE2_DESCANSO') items.push({cls:'sat', txt:`⚠ D${d} — Fase: DESCANSO`});
+    else if(a.fase==='FASE3_FONDO') items.push({cls:'sat', txt:`⚠ D${d} — Fase: FONDO`});
+    else if(a.fase==='FASE4_REBOTE') items.push({cls:'sat', txt:`⚠ D${d} — Fase: REBOTE`});
+    else if(a.fase==='FASE5_REACTIVACION') items.push({cls:'reac', txt:`🔄 REACTIVACIÓN — D${d} post-saturación`});
+    else if(a.fase==='CICLO_CORTO') items.push({cls:'ciclo', txt:`⚡ Ciclo corto detectado — D${d}`});
+  });
+  if(!items.length){ panel.style.display='none'; return; }
+  panel.style.display='flex';
+  panel.innerHTML = items.map(i=>`<div class="indicador ${i.cls}">${i.txt}</div>`).join('');
+}
+
+/* =========================================================
+   CONTROLES
+   ========================================================= */
+function agregarTiro(numero){
+  if(isNaN(numero) || numero<0 || numero>36) return;
+  const tiroActual = State.historial.length + 1;
+
+  State.historial.push(numero);
+
+  // resolver señales pendientes con este número
+  Estadisticas.resolverPendientes(tiroActual, numero);
+
+  // render ANTES de empujar el af30 actual: así t2/t3/t4 siguen apuntando
+  // correctamente al tiro anterior, hace 2 tiros y hace 3 tiros.
+  render();
+
+  // ahora sí, guardar el af30 de este tiro para que sea "t2" en el próximo
+  [1,2,3].forEach(d=>{
+    const F = frecuencias(d);
+    const AF = calcAF(F);
+    State.af30Hist[d].push(AF.af10_f30);
+    if(State.af30Hist[d].length>60) State.af30Hist[d].shift();
+  });
+}
+
+document.getElementById('btnEnter').addEventListener('click', ()=>{
+  const input = document.getElementById('numInput');
+  const val = parseInt(input.value,10);
+  if(!isNaN(val) && val>=0 && val<=36){
+    agregarTiro(val);
+    input.value='';
+    input.focus();
+  }
+});
+document.getElementById('numInput').addEventListener('keydown', (e)=>{
+  if(e.key==='Enter') document.getElementById('btnEnter').click();
+});
+document.getElementById('btnUndo').addEventListener('click', ()=>{
+  if(!State.historial.length) return;
+  State.historial.pop();
+  [1,2,3].forEach(d=>State.af30Hist[d].pop());
+  // recalcular señales: simplificado, se re-evaluan pendientes desde cero
+  State.señales.forEach(s=>{ if(s.tiro_numero>State.historial.length){ /* señal generada después del tiro removido */ } });
+  State.señales = State.señales.filter(s=>s.tiro_numero<=State.historial.length);
+  render();
+});
+document.getElementById('btnReset').addEventListener('click', ()=>{
+  if(!confirm('¿Reiniciar toda la sesión? Se perderá el historial y las estadísticas.')) return;
+  State.historial = [];
+  State.af30Hist = {1:[],2:[],3:[]};
+  State.señales = [];
+  State.señalIdSeq = 0;
+  State.ultimaSeñal = {'1D':null,'2D':null};
+  render();
+});
+document.getElementById('modo1D').addEventListener('click', ()=>cambiarModo('1D'));
+document.getElementById('modo2D').addEventListener('click', ()=>cambiarModo('2D'));
+function cambiarModo(m){
+  if(m !== State.modo){
+    const prevStats = Estadisticas.statsModo(State.modo);
+    const prevLabel = State.modo==='1D' ? '1 DOCENA' : '2 DOCENAS';
+    if(prevStats.total>0){
+      mostrarToast(`Modo ${prevLabel}: ${prevStats.ganadas}/${prevStats.ganadas+prevStats.perdidas} ganadas (${prevStats.pct.toFixed(1)}%)`, 'info', 4500);
+    }
+  }
+  State.modo = m;
+  document.getElementById('modo1D').classList.toggle('active', m==='1D');
+  document.getElementById('modo2D').classList.toggle('active', m==='2D');
+  render();
+}
+
+document.getElementById('btnExport').addEventListener('click', exportarExcel);
+function exportarExcel(){
+  const wb = XLSX.utils.book_new();
+
+  // HOJA 1 — historial
+  const h1 = State.historial.map((num,i)=>({
+    tiro: i+1, numero:num, docena: getDocena(num)===0?'—':'D'+getDocena(num)
+  }));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(h1), 'Historial');
+
+  // HOJA 2 — señales 1D
+  const s1 = State.señales.filter(s=>s.modo==='1D').map(s=>({
+    id:s.id, tiro:s.tiro_numero, docena:'D'+s.docena_principal, score:s.score, nivel:s.nivel,
+    resultado:s.resultado, tiros_hasta_ganar:s.tiros_hasta_ganar, timestamp:s.timestamp
+  }));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(s1), 'Señales 1D');
+
+  // HOJA 3 — señales 2D
+  const s2 = State.señales.filter(s=>s.modo==='2D').map(s=>({
+    id:s.id, tiro:s.tiro_numero, principal:'D'+s.docena_principal,
+    secundaria: s.docena_secundaria?('D'+s.docena_secundaria):'—',
+    score:s.score, nivel:s.nivel, resultado:s.resultado,
+    gano_por: s.ganoPor||'—', tiros_hasta_ganar:s.tiros_hasta_ganar, timestamp:s.timestamp
+  }));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(s2), 'Señales 2D');
+
+  // HOJA 4 — resumen
+  const st1 = Estadisticas.statsModo('1D');
+  const st2 = Estadisticas.statsModo('2D');
+  const resumen = [
+    {seccion:'MODO 1 DOCENA', total:st1.total, ganadas:st1.ganadas, perdidas:st1.perdidas, pct_acierto:st1.pct.toFixed(1)+'%', prom_tiros:st1.promTiros.toFixed(1), mejor_racha:st1.mejor},
+    {seccion:'MODO 2 DOCENAS', total:st2.total, ganadas:st2.ganadas, perdidas:st2.perdidas, pct_acierto:st2.pct.toFixed(1)+'%', prom_tiros:st2.promTiros.toFixed(1), mejor_racha:st2.mejor},
+  ];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(resumen), 'Resumen');
+
+  const fecha = new Date();
+  const pad = n=>String(n).padStart(2,'0');
+  const nombre = `sesion_${fecha.getFullYear()}-${pad(fecha.getMonth()+1)}-${pad(fecha.getDate())}_${pad(fecha.getHours())}-${pad(fecha.getMinutes())}.xlsx`;
+  XLSX.writeFile(wb, nombre);
+}
+
+/* init */
+render();
+</script>
+</body>
+</html>
